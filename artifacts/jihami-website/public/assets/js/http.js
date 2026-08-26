@@ -43,6 +43,16 @@ const HttpService = {
                     } catch (e) { /* ignore */ }
                 }
 
+                // The upstream API can reject an expired or revoked token even
+                // when its local JWT expiry check still passes. Clear it and
+                // send the user back to the sign-in page instead of rendering
+                // every dashboard list as empty.
+                if (xhr.status === 401) {
+                    TokenManager.removeToken();
+                    window.location.href = 'login.html';
+                    return reject(new Error('Authentication required'));
+                }
+
                 try {
                     const json = JSON.parse(xhr.responseText);
                     resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, data: json });
