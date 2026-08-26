@@ -95,15 +95,8 @@ const API = {
 
     // ─── Wcol: Payments ─────────────────────────────────────────────────────
     wcolPayments: {
-        list:   (filters = {}) => {
-            const p = new URLSearchParams();
-            if (filters.customer_id)    p.set('customer_id',    filters.customer_id);
-            if (filters.payment_method) p.set('payment_method', filters.payment_method);
-            if (filters.start_date)     p.set('start_date',     filters.start_date);
-            if (filters.end_date)       p.set('end_date',       filters.end_date);
-            const qs = p.toString();
-            return `${API_BASE_URL}/api/wasteCol/payments${qs ? '?' + qs : ''}`;
-        },
+        // Waste collection payments are received from the C2B M-Pesa feed.
+        list:   `${API_BASE_URL}/api/payments/c2b`,
         get:    (id) => `${API_BASE_URL}/api/wasteCol/payments/${id}`,
         create: `${API_BASE_URL}/api/wasteCol/payments`,
         update: (id) => `${API_BASE_URL}/api/wasteCol/payments/${id}`,

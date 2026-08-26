@@ -1,8 +1,7 @@
 /**
  * Jihami Na Records - Wcol Payments Page
- * Waste collection payment tracking.
- * Backend: /api/wasteCol/payments
- * Methods: Cash, M-Pesa, Bank Transfer, Cheque, Card, Other
+ * Waste collection payments received through the C2B M-Pesa feed.
+ * Backend: GET /api/payments/c2b
  */
 
 const WcolPaymentsPage = {
@@ -10,6 +9,50 @@ const WcolPaymentsPage = {
     metadata:  { total_records: 0, total_amount: 0 },
     // cached customer list for picker
     _customers: null,
+
+    _formatTransactionTime(value) {
+        const raw = String(value || '');
+        if (!/^\d{14}$/.test(raw)) return null;
+        const year = raw.slice(0, 4);
+        const month = raw.slice(4, 6);
+        const day = raw.slice(6, 8);
+        const hours = raw.slice(8, 10);
+        const minutes = raw.slice(10, 12);
+        const seconds = raw.slice(12, 14);
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    },
+
+    _normalisePayment(payment) {
+        return {
+            ...payment,
+            id: payment.transaction_id,
+            payment_date: this._formatTransactionTime(payment.transaction_time),
+            customer_code: payment.bill_ref_number,
+            full_name: payment.first_name,
+            amount_paid: payment.amount,
+            payment_method: 'M-Pesa C2B',
+            reference_no: payment.transaction_id,
+        };
+    },
+
+    _filterPayments(payments, filters = {}) {
+        const query = String(filters._search || '').toLowerCase();
+        const start = filters.start_date || '';
+        const end = filters.end_date || '';
+
+        return payments.filter((payment) => {
+            const searchable = [
+                payment.transaction_id,
+                payment.bill_ref_number,
+                payment.first_name,
+            ].filter(Boolean).join(' ').toLowerCase();
+            const date = payment.payment_date ? payment.payment_date.slice(0, 10) : '';
+
+            return (!query || searchable.includes(query))
+                && (!start || !date || date >= start)
+                && (!end || !date || date <= end);
+        });
+    },
 
     async render(container) {
         container.innerHTML = UI.loader();
@@ -25,10 +68,11 @@ const WcolPaymentsPage = {
     async _loadList(container, filters) {
         container.innerHTML = UI.loader();
         try {
-            const res = await HttpService.get(API.wcolPayments.list(filters));
-            this.payments = res.ok ? (res.data.data || res.data || []) : [];
-            if (!Array.isArray(this.payments)) this.payments = [];
-            this.metadata = res.ok && res.data.metadata ? res.data.metadata : {
+            const res = await HttpService.get(API.wcolPayments.list);
+            const rows = res.ok ? (res.data.data || res.data || []) : [];
+            const allPayments = Array.isArray(rows) ? rows.map(p => this._normalisePayment(p)) : [];
+            this.payments = this._filterPayments(allPayments, filters);
+            this.metadata = {
                 total_records: this.payments.length,
                 total_amount:  this.payments.reduce((s, p) => s + parseFloat(p.amount_paid || 0), 0),
             };
@@ -41,13 +85,6 @@ const WcolPaymentsPage = {
     _renderList(container, activeFilters = {}) {
         const total  = this.metadata.total_records || this.payments.length;
         const amount = parseFloat(this.metadata.total_amount || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
-
-        // Count by method
-        const byMethod = {};
-        this.payments.forEach(p => {
-            byMethod[p.payment_method] = (byMethod[p.payment_method] || 0) + 1;
-        });
-        const topMethod = Object.entries(byMethod).sort((a, b) => b[1] - a[1])[0];
 
         const statsHtml = `
             <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
@@ -62,9 +99,9 @@ const WcolPaymentsPage = {
                     <div class="stat-label">Total Amount</div>
                 </div>
                 <div class="stat-card" style="background:linear-gradient(135deg,#f59e0b 0%,#f97316 100%);color:#fff;">
-                    <div class="stat-icon"><i class="bi bi-pie-chart"></i></div>
-                    <div class="stat-value">${topMethod ? topMethod[0] : '--'}</div>
-                    <div class="stat-label">Top Method</div>
+                    <div class="stat-icon"><i class="bi bi-phone"></i></div>
+                    <div class="stat-value">M-Pesa</div>
+                    <div class="stat-label">Payment Source</div>
                 </div>
             </div>`;
 
@@ -78,14 +115,8 @@ const WcolPaymentsPage = {
                 <div class="toolbar-search">
                     <i class="bi bi-search"></i>
                     <input type="text" id="wcolPaySearch" class="form-control form-control-sm"
-                           placeholder="Customer name / code..." value="${UI.escapeHtml(activeFilters._search || '')}">
+                           placeholder="Transaction, name, or bill ref..." value="${UI.escapeHtml(activeFilters._search || '')}">
                 </div>
-                <select id="wcolPayMethod" class="form-select form-select-sm" style="width:155px;">
-                    <option value="">All Methods</option>
-                    ${['Cash','M-Pesa','Bank Transfer','Cheque','Card','Other'].map(m =>
-                        `<option value="${m}" ${activeFilters.payment_method === m ? 'selected' : ''}>${m}</option>`
-                    ).join('')}
-                </select>
                 <input type="date" id="wcolPayStart" class="form-control form-control-sm" style="width:145px;" value="${defStart}">
                 <span style="font-size:.85rem;color:#6b7280;">to</span>
                 <input type="date" id="wcolPayEnd"   class="form-control form-control-sm" style="width:145px;" value="${defEnd}">
@@ -95,36 +126,29 @@ const WcolPaymentsPage = {
             </div>`;
 
         const tableHtml = UI.table([
-            { key: 'payment_date',   label: 'Date',      render: r => UI.formatDate(r.payment_date) },
-            { key: 'customer_code',  label: 'Code',      render: r => `<span class="badge bg-secondary">${UI.escapeHtml(r.customer_code || '--')}</span>` },
-            { key: 'full_name',      label: 'Client',    render: r => UI.escapeHtml(r.full_name || '--') },
+            { key: 'transaction_time', label: 'Transaction Time', render: r => UI.formatDateTime(r.payment_date) },
+            { key: 'transaction_id',   label: 'Transaction ID', render: r => `<span class="badge bg-secondary">${UI.escapeHtml(r.transaction_id || '--')}</span>` },
+            { key: 'bill_ref_number',  label: 'Bill Ref', render: r => UI.escapeHtml(r.bill_ref_number || '--') },
+            { key: 'first_name',       label: 'Payer', render: r => UI.escapeHtml(r.first_name || '--') },
             { key: 'amount_paid',    label: 'Amount',    render: r => `<strong>KES ${parseFloat(r.amount_paid || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</strong>` },
             { key: 'payment_method', label: 'Method',    render: r => this._methodBadge(r.payment_method) },
-            { key: 'reference_no',   label: 'Reference', render: r => UI.escapeHtml(r.reference_no || '--') },
-            { key: 'invoice_id',     label: 'Invoice',   render: r => r.invoice_id != null ? `#${r.invoice_id}` : '--' },
         ], this.payments, {
-            emptyMessage: 'No payments found for this period.',
-            actions: row => `
-                <button class="btn btn-sm btn-outline-info me-1"    onclick="Router.navigate('#/wcol-payments?id=${row.id}')"><i class="bi bi-eye"></i></button>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="WcolPaymentsPage.showEdit(${row.id})"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-danger"        onclick="WcolPaymentsPage.deletePayment(${row.id})"><i class="bi bi-trash"></i></button>`,
+            emptyMessage: 'No C2B payments found for this period.',
         });
 
         container.innerHTML = statsHtml + UI.pageCard({
             icon: 'cash-stack', color: '#4f46e5',
-            title: 'Wcol Payments', subtitle: 'Waste collection payment records',
+            title: 'Wcol Payments', subtitle: 'M-Pesa C2B payments for waste collection',
             count: total,
             filterHtml,
-            actionHtml: `<button class="btn btn-primary btn-sm" onclick="Router.navigate('#/wcol-payments?action=add')"><i class="bi bi-plus-lg"></i> Record Payment</button>`,
+            actionHtml: `<span class="text-muted small"><i class="bi bi-arrow-repeat"></i> Synced from C2B</span>`,
         }, tableHtml);
 
         document.getElementById('wcolPayApply')?.addEventListener('click', () => {
             const search = document.getElementById('wcolPaySearch')?.value.trim() || '';
-            const method = document.getElementById('wcolPayMethod')?.value || '';
             const start  = document.getElementById('wcolPayStart')?.value || '';
             const end    = document.getElementById('wcolPayEnd')?.value   || '';
             this._loadList(container, {
-                payment_method: method || undefined,
                 start_date:     start  || undefined,
                 end_date:       end    || undefined,
                 _search:        search,
@@ -135,6 +159,7 @@ const WcolPaymentsPage = {
     _methodBadge(method) {
         const map = {
             'M-Pesa':        'bg-success',
+            'M-Pesa C2B':    'bg-success',
             'Cash':          'bg-primary',
             'Bank Transfer': 'bg-info text-dark',
             'Cheque':        'bg-warning text-dark',
