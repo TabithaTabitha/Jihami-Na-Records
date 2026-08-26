@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Jihami Na Records"
+version = "1.0.0"
+id = "artifacts/jihami-website"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18747
+
+[services.development]
+run = "pnpm --filter @workspace/jihami-website run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/jihami-website", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/jihami-website/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18747"
+BASE_PATH = "/"
