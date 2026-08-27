@@ -218,20 +218,21 @@ const WcolCustomersPage = {
             </div>
             ${UI.card(isEdit ? 'Edit Client' : 'New Waste Collection Client', `
                 <form id="wcolForm" class="row g-3">
+                    ${isEdit ? `
                     <div class="col-md-4">
-                        ${UI.formGroup('Client Code *', UI.input('wcolCode', 'text', 'e.g. WC-001', v.customer_code || '', 'required'), 'wcolCode')}
-                    </div>
-                    <div class="col-md-8">
+                        ${UI.formGroup('Client Code', UI.input('wcolCode', 'text', 'e.g. WC-001', v.customer_code || '', 'readonly'), 'wcolCode')}
+                    </div>` : ''}
+                    <div class="${isEdit ? 'col-md-8' : 'col-12'}">
                         ${UI.formGroup('Full Name *', UI.input('wcolName', 'text', 'Full name', v.full_name || '', 'required'), 'wcolName')}
                     </div>
                     <div class="col-md-6">
-                        ${UI.formGroup('Phone', UI.input('wcolPhone', 'tel', '+254...', v.phone || ''), 'wcolPhone')}
+                        ${UI.formGroup('Phone *', UI.input('wcolPhone', 'tel', '+254...', v.phone || '', 'required'), 'wcolPhone')}
                     </div>
                     <div class="col-md-6">
-                        ${UI.formGroup('Email', UI.input('wcolEmail', 'email', 'client@example.com', v.email || ''), 'wcolEmail')}
+                        ${UI.formGroup('Email *', UI.input('wcolEmail', 'email', 'client@example.com', v.email || '', 'required'), 'wcolEmail')}
                     </div>
                     <div class="col-12">
-                        ${UI.formGroup('Address', UI.input('wcolAddress', 'text', 'Physical address', v.address || ''), 'wcolAddress')}
+                        ${UI.formGroup('Address *', UI.input('wcolAddress', 'text', 'Physical address', v.address || '', 'required'), 'wcolAddress')}
                     </div>
                     <div class="col-md-4">
                         ${UI.formGroup('Client Type', UI.select('wcolType',
@@ -239,10 +240,10 @@ const WcolCustomersPage = {
                                 { value: 'Residential', label: 'Residential' },
                                 { value: 'Commercial',  label: 'Commercial' },
                                 { value: 'Industrial',  label: 'Industrial' },
-                            ], v.customer_type || 'Residential'), 'wcolType')}
+                            ], v.customer_type || 'Residential', 'required'), 'wcolType')}
                     </div>
                     <div class="col-md-4">
-                        ${UI.formGroup('Waste Type', UI.input('wcolWaste', 'text', 'e.g. Organic, Plastic', v.waste_type || ''), 'wcolWaste')}
+                        ${UI.formGroup('Waste Type *', UI.input('wcolWaste', 'text', 'e.g. General, Recyclable', v.waste_type || '', 'required'), 'wcolWaste')}
                     </div>
                     <div class="col-md-4">
                         ${UI.formGroup('Collection Frequency', UI.select('wcolFreq',
@@ -252,17 +253,17 @@ const WcolCustomersPage = {
                                 { value: 'Weekly',    label: 'Weekly' },
                                 { value: 'Biweekly',  label: 'Biweekly' },
                                 { value: 'Monthly',   label: 'Monthly' },
-                            ], v.collection_frequency || ''), 'wcolFreq')}
+                            ], v.collection_frequency || '', 'required'), 'wcolFreq')}
                     </div>
                     <div class="col-md-4">
                         ${UI.formGroup('Status', UI.select('wcolStatus',
                             [
                                 { value: 'Active',   label: 'Active' },
                                 { value: 'Inactive', label: 'Inactive' },
-                            ], v.status || 'Active'), 'wcolStatus')}
+                            ], v.status || 'Active', 'required'), 'wcolStatus')}
                     </div>
                     <div class="col-md-4">
-                        ${UI.formGroup('Plan', UI.select('wcolPlan', cycleOptions, v.plan_id != null ? String(v.plan_id) : ''), 'wcolPlan')}
+                        ${UI.formGroup('Plan *', UI.select('wcolPlan', cycleOptions, v.plan_id != null ? String(v.plan_id) : '', 'required'), 'wcolPlan')}
                     </div>
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">
@@ -275,18 +276,25 @@ const WcolCustomersPage = {
         document.getElementById('wcolForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const planRaw = document.getElementById('wcolPlan').value;
+            if (!planRaw) {
+                UI.toast('Please select a plan', 'danger');
+                return;
+            }
+
             const payload = {
-                customer_code:        document.getElementById('wcolCode').value.trim(),
                 full_name:            document.getElementById('wcolName').value.trim(),
-                phone:                document.getElementById('wcolPhone').value.trim() || null,
-                email:                document.getElementById('wcolEmail').value.trim() || null,
-                address:              document.getElementById('wcolAddress').value.trim() || null,
+                phone:                document.getElementById('wcolPhone').value.trim(),
+                email:                document.getElementById('wcolEmail').value.trim(),
+                address:              document.getElementById('wcolAddress').value.trim(),
                 customer_type:        document.getElementById('wcolType').value,
-                waste_type:           document.getElementById('wcolWaste').value.trim() || null,
-                collection_frequency: document.getElementById('wcolFreq').value || null,
+                waste_type:           document.getElementById('wcolWaste').value.trim(),
+                collection_frequency: document.getElementById('wcolFreq').value,
                 status:               document.getElementById('wcolStatus').value,
-                plan_id:              planRaw ? parseInt(planRaw, 10) : null,
+                plan_id:              parseInt(planRaw, 10),
             };
+            if (isEdit) {
+                payload.customer_code = document.getElementById('wcolCode').value.trim();
+            }
             try {
                 const res = isEdit
                     ? await HttpService.put(API.wcolCustomers.update(editData.id), payload)
