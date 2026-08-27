@@ -74,7 +74,7 @@ const WcolCustomersPage = {
             { key: 'phone',         label: 'Phone',     render: r => UI.escapeHtml(r.phone || '--') },
             { key: 'customer_type', label: 'Type',      render: r => this._typeBadge(r.customer_type) },
             { key: 'waste_type',    label: 'Waste',     render: r => UI.escapeHtml(r.waste_type || '--') },
-            { key: 'collection_frequency', label: 'Frequency', render: r => UI.escapeHtml(r.collection_frequency || '--') },
+            { key: 'start_date',   label: 'Start Date', render: r => UI.formatDate(r.start_date) },
             { key: 'status',        label: 'Status',    render: r => r.status === 'Active'
                 ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Inactive</span>' },
@@ -131,7 +131,7 @@ const WcolCustomersPage = {
             { key: 'phone',         label: 'Phone',     render: r => UI.escapeHtml(r.phone || '--') },
             { key: 'customer_type', label: 'Type',      render: r => this._typeBadge(r.customer_type) },
             { key: 'waste_type',    label: 'Waste',     render: r => UI.escapeHtml(r.waste_type || '--') },
-            { key: 'collection_frequency', label: 'Frequency', render: r => UI.escapeHtml(r.collection_frequency || '--') },
+            { key: 'start_date',   label: 'Start Date', render: r => UI.formatDate(r.start_date) },
             { key: 'status',        label: 'Status',    render: r => r.status === 'Active'
                 ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Inactive</span>' },
@@ -179,7 +179,7 @@ const WcolCustomersPage = {
                         ${UI.card('Collection Details', `
                             <div class="mb-2"><strong>Type:</strong> ${this._typeBadge(c.customer_type)}</div>
                             <div class="mb-2"><strong>Waste Type:</strong> ${UI.escapeHtml(c.waste_type || '--')}</div>
-                            <div class="mb-2"><strong>Frequency:</strong> ${UI.escapeHtml(c.collection_frequency || '--')}</div>
+                            <div class="mb-2"><strong>Start Date:</strong> ${UI.formatDate(c.start_date)}</div>
                             <div class="mb-2"><strong>Status:</strong> ${c.status === 'Active'
                                 ? '<span class="badge bg-success">Active</span>'
                                 : '<span class="badge bg-secondary">Inactive</span>'}</div>
@@ -246,14 +246,7 @@ const WcolCustomersPage = {
                         ${UI.formGroup('Waste Type *', UI.input('wcolWaste', 'text', 'e.g. General, Recyclable', v.waste_type || '', 'required'), 'wcolWaste')}
                     </div>
                     <div class="col-md-4">
-                        ${UI.formGroup('Collection Frequency', UI.select('wcolFreq',
-                            [
-                                { value: '',          label: '— Select —' },
-                                { value: 'Daily',     label: 'Daily' },
-                                { value: 'Weekly',    label: 'Weekly' },
-                                { value: 'Biweekly',  label: 'Biweekly' },
-                                { value: 'Monthly',   label: 'Monthly' },
-                            ], v.collection_frequency || '', 'required'), 'wcolFreq')}
+                        ${UI.formGroup('Start Date *', UI.input('wcolStartDate', 'date', '', v.start_date || '', 'required'), 'wcolStartDate')}
                     </div>
                     <div class="col-md-4">
                         ${UI.formGroup('Status', UI.select('wcolStatus',
@@ -288,7 +281,7 @@ const WcolCustomersPage = {
                 address:              document.getElementById('wcolAddress').value.trim(),
                 customer_type:        document.getElementById('wcolType').value,
                 waste_type:           document.getElementById('wcolWaste').value.trim(),
-                collection_frequency: document.getElementById('wcolFreq').value,
+                start_date:           document.getElementById('wcolStartDate').value,
                 status:               document.getElementById('wcolStatus').value,
                 plan_id:              parseInt(planRaw, 10),
             };

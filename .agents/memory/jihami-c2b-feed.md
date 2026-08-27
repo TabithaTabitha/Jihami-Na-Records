@@ -9,8 +9,8 @@ The waste-collection payment feed is served at `/wcol-c2b` on the Jihami upstrea
 
 **How to apply:** Keep the browser on the same-origin `/api` route for CORS and authentication, rewrite only that local alias to the upstream `/wcol-c2b` path, and parse both ISO and legacy compact timestamps.
 
-Customer creation uses a strict JSON contract: `full_name`, `phone`, `email`, `address`, `customer_type`, `waste_type`, `collection_frequency`, `status`, and numeric `plan_id`; `customer_code` is not part of the create payload.
+Customer creation uses a strict JSON contract: `full_name`, `phone`, `email`, `address`, `customer_type`, `waste_type`, `start_date`, `status`, and numeric `plan_id`; `customer_code` is not part of the create payload.
 
-**Why:** The create endpoint expects the server to handle customer-code assignment and rejects or ignores the older client-generated code field.
+**Why:** The create endpoint expects the server to handle customer-code assignment and uses a start date instead of the older collection-frequency field.
 
-**How to apply:** Keep the client-code field available only when editing an existing customer, and require a selected plan before submitting a new customer.
+**How to apply:** Keep the client-code field available only when editing an existing customer, and require both a start date and selected plan before submitting a new customer.
