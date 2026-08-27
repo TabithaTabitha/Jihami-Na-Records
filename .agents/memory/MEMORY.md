@@ -1,0 +1,1 @@
+- [Jihami C2B feed](jihami-c2b-feed.md) — use the upstream `/wcol-c2b` contract, preserve bearer auth, and accept ISO timestamps.

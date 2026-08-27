@@ -1,7 +1,7 @@
 /**
  * Jihami Na Records - Wcol Payments Page
  * Waste collection payments received through the C2B M-Pesa feed.
- * Backend: GET /api/payments/c2b
+ * Backend: GET https://jihami.co.ke/wcol-c2b
  */
 
 const WcolPaymentsPage = {
@@ -12,14 +12,18 @@ const WcolPaymentsPage = {
 
     _formatTransactionTime(value) {
         const raw = String(value || '');
-        if (!/^\d{14}$/.test(raw)) return null;
-        const year = raw.slice(0, 4);
-        const month = raw.slice(4, 6);
-        const day = raw.slice(6, 8);
-        const hours = raw.slice(8, 10);
-        const minutes = raw.slice(10, 12);
-        const seconds = raw.slice(12, 14);
-        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        if (/^\d{14}$/.test(raw)) {
+            const year = raw.slice(0, 4);
+            const month = raw.slice(4, 6);
+            const day = raw.slice(6, 8);
+            const hours = raw.slice(8, 10);
+            const minutes = raw.slice(10, 12);
+            const seconds = raw.slice(12, 14);
+            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        }
+
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? null : raw;
     },
 
     _normalisePayment(payment) {
@@ -46,7 +50,10 @@ const WcolPaymentsPage = {
                 payment.bill_ref_number,
                 payment.first_name,
             ].filter(Boolean).join(' ').toLowerCase();
-            const date = payment.payment_date ? payment.payment_date.slice(0, 10) : '';
+            const parsedDate = payment.payment_date ? new Date(payment.payment_date) : null;
+            const date = parsedDate && !Number.isNaN(parsedDate.getTime())
+                ? `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`
+                : '';
 
             return (!query || searchable.includes(query))
                 && (!start || !date || date >= start)

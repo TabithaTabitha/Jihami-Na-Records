@@ -96,7 +96,7 @@ const API = {
     // ─── Wcol: Payments ─────────────────────────────────────────────────────
     wcolPayments: {
         // Waste collection payments are received from the C2B M-Pesa feed.
-        list:   `${API_BASE_URL}/api/payments/c2b`,
+        list:   `${API_BASE_URL}/api/wcol-c2b`,
         get:    (id) => `${API_BASE_URL}/api/wasteCol/payments/${id}`,
         create: `${API_BASE_URL}/api/wasteCol/payments`,
         update: (id) => `${API_BASE_URL}/api/wasteCol/payments/${id}`,

@@ -19,7 +19,10 @@ function buildUpstreamBody(req: Request): string | undefined {
 }
 
 router.use(async (req, res: Response) => {
-  const upstreamUrl = new URL(req.originalUrl, upstreamOrigin);
+  const upstreamPath = req.originalUrl.startsWith("/api/wcol-c2b")
+    ? req.originalUrl.replace(/^\/api\/wcol-c2b/, "/wcol-c2b")
+    : req.originalUrl;
+  const upstreamUrl = new URL(upstreamPath, upstreamOrigin);
   const authorization = req.get("authorization");
   const contentType = req.get("content-type");
   const body = buildUpstreamBody(req);
