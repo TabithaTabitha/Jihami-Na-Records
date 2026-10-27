@@ -49,6 +49,7 @@ main { width: min(1440px, 100%); margin: 0 auto; padding: 35px clamp(18px, 4vw, 
 .eyebrow { text-transform: uppercase; font-size: 10px; letter-spacing: .14em; font-weight: 700; color: var(--brand); margin: 0 0 8px; }
 h1 { font: 800 clamp(25px, 3.2vw, 34px)/1.1 "Manrope", sans-serif; letter-spacing: -.055em; margin: 0; }
 .intro-copy { margin: 9px 0 0; color: var(--muted); font-size: 13px; max-width: 580px; line-height: 1.55; }
+.intro-order-link { margin-top: 14px; min-height: 42px; text-decoration: none; }
 .floor-summary { display: flex; gap: 22px; flex-shrink: 0; }
 .summary-item { min-width: 62px; }
 .summary-value { display: block; font: 700 19px "Manrope", sans-serif; letter-spacing: -.04em; }

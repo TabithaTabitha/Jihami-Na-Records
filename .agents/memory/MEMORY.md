@@ -1,1 +1,2 @@
 - [Jihami waste collection API](jihami-c2b-feed.md) — C2B uses `/wcol-c2b`; customer creation and nested `balance_info` follow explicit contracts.
+- [Waiter order scope](restaurant-waiter-scope.md) — the touchscreen waiter flow is for taking orders only, not broader restaurant management.
