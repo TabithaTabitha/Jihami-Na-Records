@@ -2,7 +2,14 @@
   "use strict";
 
   const ACTIVE_STATUSES = new Set(["pending", "confirmed", "preparing", "ready"]);
+  const IDLE_AFTER_MS = 5 * 1000;
   const app = document.getElementById("app");
+  let waiterShell = null;
+  let idleOverlay = null;
+  let idleTimer = null;
+  let clockTimer = null;
+  let lastFocusedElement = null;
+  let lastActivityAt = 0;
   const state = {
     tables: [],
     menu: [],
@@ -46,6 +53,188 @@
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
     return node;
+  }
+
+  function buildIdleOverlay() {
+    const overlay = make("div", "idle-overlay");
+    overlay.hidden = true;
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "idleTitle");
+    overlay.setAttribute("aria-describedby", "idleHint");
+
+    const card = make("section", "idle-clock-card");
+    const brand = make("div", "idle-brand-mark", "J");
+    brand.setAttribute("aria-hidden", "true");
+    card.append(brand, make("p", "idle-kicker", "Jihami Na Records · Waiter pad"));
+
+    const title = make("h1", "", "Service is ready when you are");
+    title.id = "idleTitle";
+    card.append(title);
+
+    const clock = document.createElement("time");
+    clock.className = "idle-clock-time";
+    clock.id = "idleClockTime";
+    clock.setAttribute("role", "img");
+    clock.setAttribute("aria-label", "Local wall clock");
+    clock.dateTime = new Date().toISOString();
+
+    const svgNamespace = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNamespace, "svg");
+    svg.setAttribute("viewBox", "0 0 300 300");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.classList.add("wall-clock-svg");
+
+    const addSvgShape = (tag, attributes, className) => {
+      const shape = document.createElementNS(svgNamespace, tag);
+      Object.entries(attributes).forEach(([key, value]) => shape.setAttribute(key, String(value)));
+      if (className) shape.classList.add(...className.split(/\s+/).filter(Boolean));
+      svg.append(shape);
+      return shape;
+    };
+
+    addSvgShape("circle", { cx: 150, cy: 150, r: 146 }, "clock-case");
+    addSvgShape("circle", { cx: 150, cy: 150, r: 135 }, "clock-dial");
+    for (let tick = 0; tick < 60; tick += 1) {
+      const hourMark = tick % 5 === 0;
+      addSvgShape("line", {
+        x1: 150,
+        y1: 25,
+        x2: 150,
+        y2: hourMark ? 45 : 35,
+        transform: `rotate(${tick * 6} 150 150)`
+      }, hourMark ? "clock-hour-mark" : "clock-minute-mark");
+    }
+    for (let numeral = 1; numeral <= 12; numeral += 1) {
+      const angle = (numeral * Math.PI) / 6;
+      addSvgShape("text", {
+        x: 150 + Math.sin(angle) * 96,
+        y: 150 - Math.cos(angle) * 96,
+        "text-anchor": "middle",
+        "dominant-baseline": "central"
+      }, "clock-numeral").textContent = String(numeral);
+    }
+    addSvgShape("line", { id: "idleHourHand", x1: 150, y1: 150, x2: 150, y2: 91 }, "clock-hand clock-hour-hand");
+    addSvgShape("line", { id: "idleMinuteHand", x1: 150, y1: 150, x2: 150, y2: 57 }, "clock-hand clock-minute-hand");
+    addSvgShape("line", { id: "idleSecondHand", x1: 150, y1: 166, x2: 150, y2: 43 }, "clock-hand clock-second-hand");
+    addSvgShape("circle", { cx: 150, cy: 150, r: 9 }, "clock-center-pin");
+    clock.append(svg);
+    card.append(clock);
+
+    const date = make("time", "idle-clock-date");
+    date.id = "idleClockDate";
+    card.append(date);
+
+    const hint = make("p", "idle-hint", "The order pad is resting. Tap anywhere to continue.");
+    hint.id = "idleHint";
+    card.append(hint);
+
+    const resume = make("button", "idle-resume", "Resume orders");
+    resume.type = "button";
+    resume.id = "idleResume";
+    resume.addEventListener("click", wakeFromIdle);
+    card.append(resume);
+
+    overlay.append(card);
+    overlay.addEventListener("pointerdown", wakeFromIdle);
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        wakeFromIdle();
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        resume.focus();
+      }
+    });
+    return overlay;
+  }
+
+  function updateIdleClock() {
+    const clock = document.getElementById("idleClockTime");
+    const date = document.getElementById("idleClockDate");
+    if (!clock || !date) return;
+
+    const now = new Date();
+    clock.dateTime = now.toISOString();
+    const formattedTime = new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit"
+    }).format(now);
+    clock.setAttribute("aria-label", `Local wall clock showing ${formattedTime}`);
+    const hourHand = document.getElementById("idleHourHand");
+    const minuteHand = document.getElementById("idleMinuteHand");
+    const secondHand = document.getElementById("idleSecondHand");
+    const hours = now.getHours() % 12;
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    hourHand?.setAttribute("transform", `rotate(${(hours + minutes / 60) * 30} 150 150)`);
+    minuteHand?.setAttribute("transform", `rotate(${(minutes + seconds / 60) * 6} 150 150)`);
+    secondHand?.setAttribute("transform", `rotate(${seconds * 6} 150 150)`);
+    date.dateTime = now.toISOString();
+    date.textContent = new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    }).format(now);
+  }
+
+  function showIdleClock() {
+    if (!idleOverlay || !waiterShell || !idleOverlay.hidden) return;
+    window.clearTimeout(idleTimer);
+    idleTimer = null;
+    if (document.visibilityState === "hidden") return;
+    lastFocusedElement = waiterShell.contains(document.activeElement) ? document.activeElement : null;
+    updateIdleClock();
+    idleOverlay.hidden = false;
+    waiterShell.inert = true;
+    window.clearInterval(clockTimer);
+    clockTimer = window.setInterval(updateIdleClock, 1000);
+    window.setTimeout(() => document.getElementById("idleResume")?.focus({ preventScroll: true }), 0);
+  }
+
+  function scheduleIdleClock(resetActivity = true) {
+    if (resetActivity) lastActivityAt = Date.now();
+    window.clearTimeout(idleTimer);
+    const remaining = Math.max(0, IDLE_AFTER_MS - (Date.now() - lastActivityAt));
+    idleTimer = window.setTimeout(showIdleClock, remaining);
+  }
+
+  function wakeFromIdle() {
+    if (!idleOverlay || idleOverlay.hidden) return;
+    idleOverlay.hidden = true;
+    if (waiterShell) waiterShell.inert = false;
+    window.clearInterval(clockTimer);
+    clockTimer = null;
+    lastFocusedElement?.focus?.({ preventScroll: true });
+    lastFocusedElement = null;
+    scheduleIdleClock();
+  }
+
+  function trackWaiterActivity(event) {
+    if (event.defaultPrevented) return;
+    if (idleOverlay && !idleOverlay.hidden) {
+      if (event.type === "keydown" && event.key === "Tab") return;
+      wakeFromIdle();
+      return;
+    }
+    scheduleIdleClock();
+  }
+
+  function startIdleClock() {
+    scheduleIdleClock();
+    ["pointerdown", "keydown", "input", "change", "wheel", "scroll", "touchstart"].forEach((eventName) => {
+      document.addEventListener(eventName, trackWaiterActivity, { passive: true });
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      const inactiveFor = Date.now() - lastActivityAt;
+      if (idleOverlay && idleOverlay.hidden && inactiveFor >= IDLE_AFTER_MS) showIdleClock();
+      else if (idleOverlay && !idleOverlay.hidden) updateIdleClock();
+      else scheduleIdleClock(false);
+    });
   }
 
   function showSignIn() {
@@ -165,6 +354,9 @@
     main.append(heading, layout);
     shell.append(header, main);
     app.replaceChildren(shell);
+    waiterShell = shell;
+    idleOverlay = buildIdleOverlay();
+    app.append(idleOverlay);
 
     search.addEventListener("input", renderMenu);
     send.addEventListener("click", sendOrder);
@@ -556,6 +748,7 @@
     if (tablesResult.status === "rejected") state.tablesError = tablesResult.reason?.message || "Could not load tables.";
     if (menuResult.status === "rejected") state.menuError = menuResult.reason?.message || "Could not load menu items.";
     render();
+    startIdleClock();
   }
 
   start().catch((error) => {
