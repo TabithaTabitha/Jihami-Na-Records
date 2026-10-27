@@ -20,6 +20,14 @@ serve = "static"
 publicDir = "artifacts/jihami-website/dist/public"
 
 [[services.production.rewrites]]
+from = "/resturant_management"
+to = "/resturant_management/index.html"
+
+[[services.production.rewrites]]
+from = "/resturant_management/"
+to = "/resturant_management/index.html"
+
+[[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
 

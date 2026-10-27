@@ -1,1 +1,1 @@
-- [Jihami C2B feed](jihami-c2b-feed.md) — use the upstream `/wcol-c2b` contract, preserve bearer auth, and accept ISO timestamps.
+- [Jihami waste collection API](jihami-c2b-feed.md) — C2B uses `/wcol-c2b`; customer creation and nested `balance_info` follow explicit contracts.

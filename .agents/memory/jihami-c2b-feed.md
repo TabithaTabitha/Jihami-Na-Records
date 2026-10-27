@@ -1,6 +1,6 @@
 ---
 name: Jihami C2B feed contract
-description: Non-obvious upstream contract for the waste-collection payment feed.
+description: Non-obvious upstream contracts for waste-collection payments and customers.
 ---
 
 The waste-collection payment feed is served at `/wcol-c2b` on the Jihami upstream and returns ISO-8601 transaction timestamps; dashboard requests must preserve the user's bearer authorization when routed through the local API.
@@ -14,3 +14,9 @@ Customer creation uses a strict JSON contract: `full_name`, `phone`, `email`, `a
 **Why:** The create endpoint expects the server to handle customer-code assignment and uses a start date instead of the older collection-frequency field.
 
 **How to apply:** Keep the client-code field available only when editing an existing customer, and require both a start date and selected plan before submitting a new customer.
+
+Customer reads may include a nested `balance_info` object containing `total_due`, `total_paid`, `running_balance`, `plan_price`, `plan_name`, `start_date`, `end_date`, `cycles_completed`, `payment_status`, and `reference_date`.
+
+**Why:** The customer detail response is the source for identifying customers with outstanding or overdue balances.
+
+**How to apply:** Read balance values from `customer.balance_info`, show `running_balance` and `payment_status` prominently, and retain the plan and cycle dates as supporting context.

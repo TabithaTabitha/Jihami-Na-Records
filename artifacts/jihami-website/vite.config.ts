@@ -23,6 +23,20 @@ export default defineConfig({
   base: basePath,
   plugins: [
     runtimeErrorOverlay(),
+    {
+      name: 'restaurant-management-page-route',
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (req.url) {
+            const requestUrl = new URL(req.url, 'http://localhost');
+            if (requestUrl.pathname === '/resturant_management' || requestUrl.pathname === '/resturant_management/') {
+              req.url = `/resturant_management/index.html${requestUrl.search}`;
+            }
+          }
+          next();
+        });
+      },
+    },
     ...(process.env.NODE_ENV !== 'production' &&
     process.env.REPL_ID !== undefined
       ? [

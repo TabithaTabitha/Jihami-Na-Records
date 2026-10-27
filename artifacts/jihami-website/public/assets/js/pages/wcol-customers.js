@@ -7,6 +7,45 @@
 const WcolCustomersPage = {
     customers: [],
 
+    _balanceInfo(customer) {
+        return customer?.balance_info || {};
+    },
+
+    _balanceAmount(value) {
+        return `KES ${parseFloat(value || 0).toLocaleString('en-KE', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })}`;
+    },
+
+    _isBehind(customer) {
+        const balance = this._balanceInfo(customer);
+        const runningBalance = parseFloat(balance.running_balance || 0);
+        const paymentStatus = String(balance.payment_status || '').toLowerCase();
+        return runningBalance > 0 || ['pending', 'partial', 'overdue', 'unpaid', 'outstanding'].includes(paymentStatus);
+    },
+
+    _paymentStatusBadge(customer) {
+        const balance = this._balanceInfo(customer);
+        if (!Object.keys(balance).length) return '<span class="text-muted">No balance data</span>';
+
+        const status = String(balance.payment_status || (this._isBehind(customer) ? 'Pending' : 'Paid'));
+        const normalized = status.toLowerCase();
+        const className = normalized === 'paid' || normalized === 'clear'
+            ? 'bg-success'
+            : this._isBehind(customer)
+                ? 'bg-danger'
+                : 'bg-secondary';
+
+        return `<span class="badge ${className}">${UI.escapeHtml(status)}</span>`;
+    },
+
+    _filterByBalance(data, filter) {
+        if (filter === 'behind') return data.filter(customer => this._isBehind(customer));
+        if (filter === 'clear') return data.filter(customer => !this._isBehind(customer));
+        return data;
+    },
+
     async render(container) {
         container.innerHTML = UI.loader();
         const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
@@ -29,9 +68,13 @@ const WcolCustomersPage = {
         const total     = this.customers.length;
         const active    = this.customers.filter(c => c.status === 'Active').length;
         const inactive  = this.customers.filter(c => c.status === 'Inactive').length;
+        const behind    = this.customers.filter(c => this._isBehind(c)).length;
+        const outstanding = this.customers.reduce((sum, customer) => {
+            return sum + Math.max(0, parseFloat(this._balanceInfo(customer).running_balance || 0));
+        }, 0);
 
         const statsHtml = `
-            <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+            <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));">
                 <div class="stat-card" style="background:linear-gradient(135deg,#059669 0%,#10b981 100%);color:#fff;">
                     <div class="stat-icon"><i class="bi bi-recycle"></i></div>
                     <div class="stat-value">${total}</div>
@@ -46,6 +89,16 @@ const WcolCustomersPage = {
                     <div class="stat-icon"><i class="bi bi-pause-circle"></i></div>
                     <div class="stat-value">${inactive}</div>
                     <div class="stat-label">Inactive</div>
+                </div>
+                <div class="stat-card" style="background:linear-gradient(135deg,#dc2626 0%,#ef4444 100%);color:#fff;">
+                    <div class="stat-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                    <div class="stat-value">${behind}</div>
+                    <div class="stat-label">Behind on Payments</div>
+                </div>
+                <div class="stat-card" style="background:linear-gradient(135deg,#d97706 0%,#f59e0b 100%);color:#fff;">
+                    <div class="stat-icon"><i class="bi bi-wallet2"></i></div>
+                    <div class="stat-value">${this._balanceAmount(outstanding)}</div>
+                    <div class="stat-label">Outstanding Balance</div>
                 </div>
             </div>`;
 
@@ -66,6 +119,11 @@ const WcolCustomersPage = {
                     <option value="Commercial">Commercial</option>
                     <option value="Industrial">Industrial</option>
                 </select>
+                <select id="wcolBalanceFilter" class="form-select form-select-sm" style="width:170px;">
+                    <option value="">All Payment Status</option>
+                    <option value="behind">Behind on Payments</option>
+                    <option value="clear">Paid / Clear</option>
+                </select>
             </div>`;
 
         const tableHtml = UI.table([
@@ -75,11 +133,17 @@ const WcolCustomersPage = {
             { key: 'customer_type', label: 'Type',      render: r => this._typeBadge(r.customer_type) },
             { key: 'waste_type',    label: 'Waste',     render: r => UI.escapeHtml(r.waste_type || '--') },
             { key: 'start_date',   label: 'Start Date', render: r => UI.formatDate(r.start_date) },
+            { key: 'running_balance', label: 'Balance', render: r => {
+                const amount = parseFloat(this._balanceInfo(r).running_balance || 0);
+                return `<strong class="${amount > 0 ? 'text-danger' : 'text-success'}">${this._balanceAmount(amount)}</strong>`;
+            } },
+            { key: 'payment_status', label: 'Payment Status', render: r => this._paymentStatusBadge(r) },
             { key: 'status',        label: 'Status',    render: r => r.status === 'Active'
                 ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Inactive</span>' },
         ], this.customers, {
             emptyMessage: 'No Wcol customers yet. Add your first client!',
+            rowClass: row => this._isBehind(row) ? 'table-warning' : '',
             actions: row => `
                 <button class="btn btn-sm btn-outline-info me-1"    onclick="Router.navigate('#/wcol-customers?id=${row.id}')"><i class="bi bi-eye"></i></button>
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="WcolCustomersPage.showEdit(${row.id})"><i class="bi bi-pencil"></i></button>
@@ -99,21 +163,23 @@ const WcolCustomersPage = {
             const q      = document.getElementById('wcolSearch')?.value.trim() || '';
             const status = document.getElementById('wcolStatusFilter')?.value || '';
             const type   = document.getElementById('wcolTypeFilter')?.value || '';
+            const balance = document.getElementById('wcolBalanceFilter')?.value || '';
 
             if (!q && !status && !type) {
-                this._rebuildTable(container, this.customers);
+                this._rebuildTable(container, this._filterByBalance(this.customers, balance));
                 return;
             }
             try {
                 const res = await HttpService.get(API.wcolCustomers.search(q, status, type));
                 const data = res.ok ? (res.data.data || res.data || []) : [];
-                this._rebuildTable(container, Array.isArray(data) ? data : []);
+                this._rebuildTable(container, this._filterByBalance(Array.isArray(data) ? data : [], balance));
             } catch (_) { /* ignore */ }
         };
 
         document.getElementById('wcolSearch')?.addEventListener('input', doFilter);
         document.getElementById('wcolStatusFilter')?.addEventListener('change', doFilter);
         document.getElementById('wcolTypeFilter')?.addEventListener('change', doFilter);
+        document.getElementById('wcolBalanceFilter')?.addEventListener('change', doFilter);
     },
 
     _typeBadge(type) {
@@ -132,11 +198,17 @@ const WcolCustomersPage = {
             { key: 'customer_type', label: 'Type',      render: r => this._typeBadge(r.customer_type) },
             { key: 'waste_type',    label: 'Waste',     render: r => UI.escapeHtml(r.waste_type || '--') },
             { key: 'start_date',   label: 'Start Date', render: r => UI.formatDate(r.start_date) },
+            { key: 'running_balance', label: 'Balance', render: r => {
+                const amount = parseFloat(this._balanceInfo(r).running_balance || 0);
+                return `<strong class="${amount > 0 ? 'text-danger' : 'text-success'}">${this._balanceAmount(amount)}</strong>`;
+            } },
+            { key: 'payment_status', label: 'Payment Status', render: r => this._paymentStatusBadge(r) },
             { key: 'status',        label: 'Status',    render: r => r.status === 'Active'
                 ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Inactive</span>' },
         ], data, {
             emptyMessage: 'No customers match your filters.',
+            rowClass: row => this._isBehind(row) ? 'table-warning' : '',
             actions: row => `
                 <button class="btn btn-sm btn-outline-info me-1"    onclick="Router.navigate('#/wcol-customers?id=${row.id}')"><i class="bi bi-eye"></i></button>
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="WcolCustomersPage.showEdit(${row.id})"><i class="bi bi-pencil"></i></button>
@@ -153,6 +225,8 @@ const WcolCustomersPage = {
                 UI.toast('Customer not found', 'danger');
                 return Router.navigate('#/wcol-customers');
             }
+            const balance = this._balanceInfo(c);
+            const runningBalance = parseFloat(balance.running_balance || 0);
 
             container.innerHTML = `
                 <div class="page-toolbar">
@@ -185,6 +259,47 @@ const WcolCustomersPage = {
                                 : '<span class="badge bg-secondary">Inactive</span>'}</div>
                             <div class="mb-2"><strong>Plan ID:</strong> ${c.plan_id != null ? UI.escapeHtml(String(c.plan_id)) : '--'}</div>
                             <div class="mb-2"><strong>Created:</strong> ${UI.formatDate(c.created_at)}</div>
+                        `)}
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-12">
+                        ${UI.card('Balance & Payment Status', `
+                            <div class="row g-3">
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Total Due</div>
+                                    <div class="fs-5 fw-semibold">${this._balanceAmount(balance.total_due)}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Total Paid</div>
+                                    <div class="fs-5 fw-semibold text-success">${this._balanceAmount(balance.total_paid)}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Running Balance</div>
+                                    <div class="fs-5 fw-semibold ${runningBalance > 0 ? 'text-danger' : 'text-success'}">${this._balanceAmount(runningBalance)}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Payment Status</div>
+                                    <div class="mt-1">${this._paymentStatusBadge(c)}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Plan</div>
+                                    <div class="fw-semibold">${UI.escapeHtml(balance.plan_name || '--')}</div>
+                                    <div class="small text-muted">${this._balanceAmount(balance.plan_price)}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Cycles Completed</div>
+                                    <div class="fw-semibold">${balance.cycles_completed != null ? UI.escapeHtml(String(balance.cycles_completed)) : '--'}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Billing Window</div>
+                                    <div class="fw-semibold">${UI.formatDate(balance.start_date)} – ${UI.formatDate(balance.end_date)}</div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="text-muted small">Reference Date</div>
+                                    <div class="fw-semibold">${UI.formatDate(balance.reference_date)}</div>
+                                </div>
+                            </div>
                         `)}
                     </div>
                 </div>`;
