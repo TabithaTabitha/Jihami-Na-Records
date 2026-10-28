@@ -178,9 +178,15 @@ document.querySelectorAll('.reg-type-btn').forEach(btn => {
 
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
+    // Only honor the waiter order-pad return path; all other logins keep the dashboard default.
+    const requestedReturn = new URLSearchParams(window.location.search).get('returnTo');
+    const postLoginDestination = requestedReturn === '/resturant_management/waiter.html'
+        ? requestedReturn
+        : 'dashboard.html';
+
     // Redirect if already logged in
     if (TokenManager.isTokenValid()) {
-        window.location.href = 'dashboard.html';
+        window.location.href = postLoginDestination;
     }
 
     loginForm.addEventListener('submit', async function (e) {
@@ -205,7 +211,7 @@ if (loginForm) {
                 const user = TokenManager.getUserFromToken();
                 if (user) TokenManager.setUser(user);
                 showAlert('loginAlert', 'Login successful! Redirecting...', 'success');
-                setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
+                setTimeout(() => { window.location.href = postLoginDestination; }, 800);
             } else {
                 showAlert('loginAlert', result.data.message || 'Invalid email or password.');
             }

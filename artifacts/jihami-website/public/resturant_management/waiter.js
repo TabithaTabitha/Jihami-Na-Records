@@ -243,7 +243,7 @@
     section.append(make("div", "state-mark", "J"), make("h1", "", "Sign in to take orders"));
     section.append(make("p", "", "A valid Jihami service session is required to load tables and send orders."));
     const link = make("a", "state-link", "Go to sign in");
-    link.href = "/login.html";
+    link.href = "/login.html?returnTo=%2Fresturant_management%2Fwaiter.html";
     section.append(link);
     app.replaceChildren(section);
   }
