@@ -134,78 +134,28 @@ h1 { font: 800 clamp(26px, 3.2vw, 34px)/1.08 "Manrope", sans-serif; letter-spaci
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  place-items: center;
+  display: block;
   overflow: hidden;
-  padding: 24px;
-  color: #fff;
-  background:
-    radial-gradient(circle at 13% 18%, rgba(180, 199, 132, .24), transparent 28%),
-    radial-gradient(circle at 86% 82%, rgba(125, 117, 225, .34), transparent 34%),
-    linear-gradient(135deg, #1b1d37 0%, #39358a 55%, #24264a 100%);
+  padding: 0;
+  background: radial-gradient(ellipse at center, #28253c 0%, #171626 72%);
+  touch-action: manipulation;
+  cursor: pointer;
 }
 .idle-overlay[hidden] { display: none; }
-.idle-overlay::before, .idle-overlay::after {
-  content: "";
-  position: absolute;
-  width: min(70vw, 640px);
-  aspect-ratio: 1;
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 50%;
-  pointer-events: none;
-}
-.idle-overlay::before { transform: translate(-26%, 28%); }
-.idle-overlay::after { width: min(48vw, 430px); transform: translate(43%, -32%); border-color: rgba(255, 255, 255, .07); }
-.idle-clock-card {
-  position: relative;
-  z-index: 1;
-  width: min(660px, 100%);
-  padding: clamp(30px, 6vw, 58px);
-  text-align: center;
-  border: 1px solid rgba(255, 255, 255, .22);
-  border-radius: 25px;
-  background: rgba(20, 22, 51, .46);
-  box-shadow: 0 28px 90px rgba(9, 10, 32, .28), inset 0 1px rgba(255, 255, 255, .1);
-  backdrop-filter: blur(18px);
-}
-.idle-brand-mark {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto 16px;
-  border-radius: 15px;
-  background: #dce9ad;
-  color: #28304a;
-  font: 800 18px "Manrope", sans-serif;
-}
-.idle-kicker { margin: 0 0 24px; color: #dce9ad; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .16em; }
-.idle-clock-card h1 { max-width: 500px; margin: 0 auto; font: 700 clamp(20px, 4vw, 30px)/1.25 "Manrope", sans-serif; letter-spacing: -.04em; }
-.idle-clock-time { display: block; width: clamp(220px, 34vw, 300px); aspect-ratio: 1; margin: 22px auto 0; }
-.wall-clock-svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 14px 20px rgba(10, 11, 30, .28)); }
-.clock-case { fill: #dce9ad; stroke: rgba(255, 255, 255, .78); stroke-width: 3; }
-.clock-dial { fill: #fbf8ec; stroke: #b6bc91; stroke-width: 2; }
-.clock-minute-mark { stroke: #aaa58f; stroke-width: 1.5; stroke-linecap: round; }
-.clock-hour-mark { stroke: #41415f; stroke-width: 3.5; stroke-linecap: round; }
-.clock-numeral { fill: #30304f; font: 800 17px "Manrope", sans-serif; }
-.clock-hand { stroke-linecap: round; }
-.clock-hour-hand { stroke: #28294c; stroke-width: 7; }
-.clock-minute-hand { stroke: #5149c8; stroke-width: 4.5; }
-.clock-second-hand { stroke: #bd5961; stroke-width: 2; }
-.clock-center-pin { fill: #bd5961; stroke: #fbf8ec; stroke-width: 2; }
-.idle-clock-date { display: block; margin-top: 12px; color: rgba(255, 255, 255, .76); font-size: clamp(13px, 2vw, 16px); }
-.idle-hint { margin: 28px 0 0; color: rgba(255, 255, 255, .73); font-size: 13px; }
-.idle-resume {
-  min-height: 54px;
-  margin-top: 24px;
-  padding: 0 24px;
-  border: 1px solid rgba(255, 255, 255, .84);
-  border-radius: 12px;
-  background: #fff;
-  color: #292b62;
-  font: 800 13px "Manrope", sans-serif;
-}
-.idle-resume:hover { background: #edf0d5; }
+.idle-clock-time { display: block; width: 100vw; height: 100vh; height: 100dvh; margin: 0; }
+.wall-clock-svg { display: block; width: 100%; height: 100%; overflow: hidden; }
+.roman-clock-case { fill: url(#idleClockCaseGradient); stroke: #f2dfa9; stroke-width: 2; }
+.roman-clock-bezel { fill: #b49a60; stroke: #6c5733; stroke-width: 1.5; }
+.roman-clock-dial { fill: url(#idleClockDialGradient); stroke: #fff3d3; stroke-width: 2; }
+.roman-clock-inner-ring { fill: none; stroke: #b7a06c; stroke-width: 1.5; opacity: .8; }
+.roman-clock-minute-mark { stroke: #8c8065; stroke-width: 1.4; stroke-linecap: round; opacity: .72; }
+.roman-clock-hour-mark { stroke: #332d42; stroke-width: 4; stroke-linecap: round; }
+.roman-clock-numeral { fill: #29253a; font-family: Georgia, "Times New Roman", serif; font-weight: 700; letter-spacing: .015em; }
+.roman-clock-hand { stroke-linecap: round; }
+.roman-hour-hand { stroke: #28243b; stroke-width: 8; }
+.roman-minute-hand { stroke: #5149a3; stroke-width: 5; }
+.roman-second-hand { stroke: #a64e58; stroke-width: 2.5; }
+.roman-clock-hub { fill: #a64e58; stroke: #f7efdd; stroke-width: 3; }
 
 .state-card { width: min(520px, calc(100% - 28px)); margin: clamp(40px, 10vh, 100px) auto; padding: 30px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
 .state-mark { width: 48px; height: 48px; display: grid; place-items: center; margin: 0 auto 16px; border-radius: 15px; color: var(--brand); background: var(--brand-wash); font: 800 19px "Manrope", sans-serif; }
@@ -239,11 +189,6 @@ h1 { font: 800 clamp(26px, 3.2vw, 34px)/1.08 "Manrope", sans-serif; letter-spaci
   .menu-item-name { font-size: 12px; }
   .order-content { padding: 10px 13px 14px; }
   .state-card { padding: 25px 20px; }
-  .idle-overlay { padding: 15px; }
-  .idle-clock-card { border-radius: 20px; padding: 34px 18px; }
-  .idle-kicker { margin-bottom: 20px; letter-spacing: .12em; }
-  .idle-clock-time { width: min(68vw, 250px); margin-top: 18px; }
-  .idle-hint { margin-top: 23px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

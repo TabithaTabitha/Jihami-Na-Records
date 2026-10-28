@@ -3,11 +3,14 @@
 
   const ACTIVE_STATUSES = new Set(["pending", "confirmed", "preparing", "ready"]);
   const IDLE_AFTER_MS = 5 * 1000;
+  const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+  const ROMAN_NUMERALS = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
   const app = document.getElementById("app");
   let waiterShell = null;
   let idleOverlay = null;
   let idleTimer = null;
   let clockTimer = null;
+  let clockLayout = null;
   let lastFocusedElement = null;
   let lastActivityAt = 0;
   const state = {
@@ -55,105 +58,136 @@
     return node;
   }
 
+  function addSvgShape(parent, tag, attributes, className) {
+    const shape = document.createElementNS(SVG_NAMESPACE, tag);
+    Object.entries(attributes).forEach(([key, value]) => shape.setAttribute(key, String(value)));
+    if (className) shape.classList.add(...className.split(/\s+/).filter(Boolean));
+    parent.append(shape);
+    return shape;
+  }
+
+  function clockPoint(cx, cy, radiusX, radiusY, factor, angleDegrees) {
+    const radians = (angleDegrees * Math.PI) / 180;
+    return {
+      x: cx + Math.sin(radians) * radiusX * factor,
+      y: cy - Math.cos(radians) * radiusY * factor
+    };
+  }
+
+  function drawIdleClockFace(svg, width, height) {
+    const cx = width / 2;
+    const cy = height / 2;
+    const radiusX = width * 0.495;
+    const radiusY = height * 0.495;
+    const minDimension = Math.min(width, height);
+
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.replaceChildren();
+
+    const defs = addSvgShape(svg, "defs", {}, "");
+    const dialGradient = addSvgShape(defs, "radialGradient", {
+      id: "idleClockDialGradient",
+      cx: "44%",
+      cy: "38%",
+      r: "80%"
+    }, "");
+    [["0%", "#fff9e9"], ["72%", "#f0e7d1"], ["100%", "#d9caa8"]].forEach(([offset, color]) => {
+      addSvgShape(dialGradient, "stop", { offset, "stop-color": color }, "");
+    });
+    const caseGradient = addSvgShape(defs, "linearGradient", {
+      id: "idleClockCaseGradient",
+      x1: "0",
+      y1: "0",
+      x2: "1",
+      y2: "1"
+    }, "");
+    [["0%", "#ead89c"], ["45%", "#a98c4d"], ["100%", "#6e5930"]].forEach(([offset, color]) => {
+      addSvgShape(caseGradient, "stop", { offset, "stop-color": color }, "");
+    });
+
+    addSvgShape(svg, "ellipse", { cx, cy, rx: radiusX, ry: radiusY }, "roman-clock-case");
+    addSvgShape(svg, "ellipse", { cx, cy, rx: width * 0.482, ry: height * 0.482 }, "roman-clock-bezel");
+    addSvgShape(svg, "ellipse", { cx, cy, rx: width * 0.468, ry: height * 0.468 }, "roman-clock-dial");
+    addSvgShape(svg, "ellipse", { cx, cy, rx: width * 0.405, ry: height * 0.405 }, "roman-clock-inner-ring");
+
+    for (let tick = 0; tick < 60; tick += 1) {
+      const hourMark = tick % 5 === 0;
+      const angle = tick * 6;
+      const outer = clockPoint(cx, cy, radiusX, radiusY, 0.936, angle);
+      const inner = clockPoint(cx, cy, radiusX, radiusY, hourMark ? 0.885 : 0.91, angle);
+      addSvgShape(svg, "line", {
+        x1: outer.x,
+        y1: outer.y,
+        x2: inner.x,
+        y2: inner.y
+      }, hourMark ? "roman-clock-hour-mark" : "roman-clock-minute-mark");
+    }
+
+    ROMAN_NUMERALS.forEach((numeral, index) => {
+      const point = clockPoint(cx, cy, radiusX, radiusY, 0.68, index * 30);
+      const label = addSvgShape(svg, "text", {
+        x: point.x,
+        y: point.y,
+        "text-anchor": "middle",
+        "dominant-baseline": "central",
+        "font-size": Math.max(26, Math.min(72, minDimension * 0.092))
+      }, "roman-clock-numeral");
+      label.textContent = numeral;
+    });
+
+    addSvgShape(svg, "line", { id: "idleHourHand", x1: cx, y1: cy, x2: cx, y2: cy }, "roman-clock-hand roman-hour-hand");
+    addSvgShape(svg, "line", { id: "idleMinuteHand", x1: cx, y1: cy, x2: cx, y2: cy }, "roman-clock-hand roman-minute-hand");
+    addSvgShape(svg, "line", { id: "idleSecondHand", x1: cx, y1: cy, x2: cx, y2: cy }, "roman-clock-hand roman-second-hand");
+    addSvgShape(svg, "circle", {
+      cx,
+      cy,
+      r: Math.max(9, minDimension * 0.022)
+    }, "roman-clock-hub");
+
+    clockLayout = { width, height, cx, cy, minDimension };
+  }
+
   function buildIdleOverlay() {
     const overlay = make("div", "idle-overlay");
     overlay.hidden = true;
+    overlay.tabIndex = -1;
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
-    overlay.setAttribute("aria-labelledby", "idleTitle");
-    overlay.setAttribute("aria-describedby", "idleHint");
-
-    const card = make("section", "idle-clock-card");
-    const brand = make("div", "idle-brand-mark", "J");
-    brand.setAttribute("aria-hidden", "true");
-    card.append(brand, make("p", "idle-kicker", "Jihami Na Records · Waiter pad"));
-
-    const title = make("h1", "", "Service is ready when you are");
-    title.id = "idleTitle";
-    card.append(title);
+    overlay.setAttribute("aria-label", "Waiter pad idle clock. Tap anywhere or press a key to return to orders.");
 
     const clock = document.createElement("time");
     clock.className = "idle-clock-time";
     clock.id = "idleClockTime";
     clock.setAttribute("role", "img");
-    clock.setAttribute("aria-label", "Local wall clock");
+    clock.setAttribute("aria-label", "Full-screen analog Roman-numeral clock");
     clock.dateTime = new Date().toISOString();
 
-    const svgNamespace = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(svgNamespace, "svg");
-    svg.setAttribute("viewBox", "0 0 300 300");
+    const svg = document.createElementNS(SVG_NAMESPACE, "svg");
+    svg.id = "idleClockSvg";
     svg.setAttribute("aria-hidden", "true");
     svg.setAttribute("focusable", "false");
     svg.classList.add("wall-clock-svg");
-
-    const addSvgShape = (tag, attributes, className) => {
-      const shape = document.createElementNS(svgNamespace, tag);
-      Object.entries(attributes).forEach(([key, value]) => shape.setAttribute(key, String(value)));
-      if (className) shape.classList.add(...className.split(/\s+/).filter(Boolean));
-      svg.append(shape);
-      return shape;
-    };
-
-    addSvgShape("circle", { cx: 150, cy: 150, r: 146 }, "clock-case");
-    addSvgShape("circle", { cx: 150, cy: 150, r: 135 }, "clock-dial");
-    for (let tick = 0; tick < 60; tick += 1) {
-      const hourMark = tick % 5 === 0;
-      addSvgShape("line", {
-        x1: 150,
-        y1: 25,
-        x2: 150,
-        y2: hourMark ? 45 : 35,
-        transform: `rotate(${tick * 6} 150 150)`
-      }, hourMark ? "clock-hour-mark" : "clock-minute-mark");
-    }
-    for (let numeral = 1; numeral <= 12; numeral += 1) {
-      const angle = (numeral * Math.PI) / 6;
-      addSvgShape("text", {
-        x: 150 + Math.sin(angle) * 96,
-        y: 150 - Math.cos(angle) * 96,
-        "text-anchor": "middle",
-        "dominant-baseline": "central"
-      }, "clock-numeral").textContent = String(numeral);
-    }
-    addSvgShape("line", { id: "idleHourHand", x1: 150, y1: 150, x2: 150, y2: 91 }, "clock-hand clock-hour-hand");
-    addSvgShape("line", { id: "idleMinuteHand", x1: 150, y1: 150, x2: 150, y2: 57 }, "clock-hand clock-minute-hand");
-    addSvgShape("line", { id: "idleSecondHand", x1: 150, y1: 166, x2: 150, y2: 43 }, "clock-hand clock-second-hand");
-    addSvgShape("circle", { cx: 150, cy: 150, r: 9 }, "clock-center-pin");
     clock.append(svg);
-    card.append(clock);
-
-    const date = make("time", "idle-clock-date");
-    date.id = "idleClockDate";
-    card.append(date);
-
-    const hint = make("p", "idle-hint", "The order pad is resting. Tap anywhere to continue.");
-    hint.id = "idleHint";
-    card.append(hint);
-
-    const resume = make("button", "idle-resume", "Resume orders");
-    resume.type = "button";
-    resume.id = "idleResume";
-    resume.addEventListener("click", wakeFromIdle);
-    card.append(resume);
-
-    overlay.append(card);
+    overlay.append(clock);
     overlay.addEventListener("pointerdown", wakeFromIdle);
     overlay.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        wakeFromIdle();
-      } else if (event.key === "Tab") {
-        event.preventDefault();
-        resume.focus();
-      }
+      if (event.key === "Escape" || event.key === "Tab") event.preventDefault();
+      wakeFromIdle();
     });
     return overlay;
   }
 
   function updateIdleClock() {
     const clock = document.getElementById("idleClockTime");
-    const date = document.getElementById("idleClockDate");
-    if (!clock || !date) return;
+    const svg = document.getElementById("idleClockSvg");
+    if (!clock || !svg) return;
+
+    const width = Math.max(1, Math.round(window.innerWidth || document.documentElement.clientWidth));
+    const height = Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight));
+    if (!clockLayout || clockLayout.width !== width || clockLayout.height !== height) {
+      drawIdleClockFace(svg, width, height);
+    }
 
     const now = new Date();
     clock.dateTime = now.toISOString();
@@ -162,23 +196,27 @@
       minute: "2-digit",
       second: "2-digit"
     }).format(now);
-    clock.setAttribute("aria-label", `Local wall clock showing ${formattedTime}`);
-    const hourHand = document.getElementById("idleHourHand");
-    const minuteHand = document.getElementById("idleMinuteHand");
-    const secondHand = document.getElementById("idleSecondHand");
+    clock.setAttribute("aria-label", `Full-screen analog Roman-numeral clock showing ${formattedTime}`);
+
+    const { cx, cy, minDimension } = clockLayout;
+    const setHand = (id, angle, lengthFactor, tailFactor = 0) => {
+      const hand = document.getElementById(id);
+      if (!hand) return;
+      const radians = (angle * Math.PI) / 180;
+      const length = minDimension * lengthFactor;
+      const tail = minDimension * tailFactor;
+      hand.setAttribute("x1", String(cx - Math.sin(radians) * tail));
+      hand.setAttribute("y1", String(cy + Math.cos(radians) * tail));
+      hand.setAttribute("x2", String(cx + Math.sin(radians) * length));
+      hand.setAttribute("y2", String(cy - Math.cos(radians) * length));
+    };
+
     const hours = now.getHours() % 12;
     const minutes = now.getMinutes();
     const seconds = now.getSeconds();
-    hourHand?.setAttribute("transform", `rotate(${(hours + minutes / 60) * 30} 150 150)`);
-    minuteHand?.setAttribute("transform", `rotate(${(minutes + seconds / 60) * 6} 150 150)`);
-    secondHand?.setAttribute("transform", `rotate(${seconds * 6} 150 150)`);
-    date.dateTime = now.toISOString();
-    date.textContent = new Intl.DateTimeFormat(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric"
-    }).format(now);
+    setHand("idleHourHand", (hours + minutes / 60) * 30, 0.24);
+    setHand("idleMinuteHand", (minutes + seconds / 60) * 6, 0.36);
+    setHand("idleSecondHand", seconds * 6, 0.405, 0.075);
   }
 
   function showIdleClock() {
@@ -192,7 +230,7 @@
     waiterShell.inert = true;
     window.clearInterval(clockTimer);
     clockTimer = window.setInterval(updateIdleClock, 1000);
-    window.setTimeout(() => document.getElementById("idleResume")?.focus({ preventScroll: true }), 0);
+    window.setTimeout(() => idleOverlay?.focus({ preventScroll: true }), 0);
   }
 
   function scheduleIdleClock(resetActivity = true) {
@@ -216,7 +254,6 @@
   function trackWaiterActivity(event) {
     if (event.defaultPrevented) return;
     if (idleOverlay && !idleOverlay.hidden) {
-      if (event.type === "keydown" && event.key === "Tab") return;
       wakeFromIdle();
       return;
     }
